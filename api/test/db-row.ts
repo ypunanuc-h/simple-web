@@ -1,9 +1,16 @@
 /**
- * ตัวช่วยอ่านค่าจากแถวที่ driver คืนกลับมา
+ * ตัวช่วยอ่านค่าจากแถวที่ driver คืนกลับมา สำหรับใช้ในเทสต์
  *
- * CLAUDE.md ห้ามใช้ as ทับผลลัพธ์จาก driver ตัวช่วยชุดนี้จึงตรวจค่าจริง
- * ทุกครั้งแล้วโยน error ที่อ่านรู้เรื่องเมื่อรูปร่างไม่ตรงที่คาด
+ * ส่งต่อจาก src/common/pg-row.ts ตัวเดียวกับที่โค้ดจริงใช้ (เช่น employees.repository.ts)
+ * เพื่อไม่ให้ตรรกะการอ่านแถวซ้ำสองที่ — เทสต์กับโค้ดจริงต้องเชื่อถือ shape เดียวกัน
  */
+export {
+  readBoolean,
+  readNumber,
+  readRows,
+  readString,
+} from '../src/common/pg-row';
+
 function readField(row: unknown, key: string): unknown {
   if (typeof row !== 'object' || row === null) {
     throw new Error(`expected an object row, got ${typeof row}`);
@@ -11,23 +18,12 @@ function readField(row: unknown, key: string): unknown {
   if (!(key in row)) {
     throw new Error(`row has no field "${key}"`);
   }
-  const value: unknown = Reflect.get(row, key);
-  return value;
+  return Reflect.get(row, key);
 }
 
-export function readString(row: unknown, key: string): string {
+/** เฉพาะเทสต์เท่านั้น — โค้ดจริงยังไม่มีจุดที่ต้องอ่านค่า Date จากแถวดิบ */
+export function readDate(row: unknown, key: string): Date {
   const value = readField(row, key);
-  if (typeof value !== 'string') {
-    throw new Error(`field "${key}" is ${typeof value}, expected string`);
-  }
-  return value;
-}
-
-export function readNumber(row: unknown, key: string): number {
-  const value = readField(row, key);
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
-    return Number(value);
-  }
-  throw new Error(`field "${key}" is ${typeof value}, expected number`);
+  if (value instanceof Date) return value;
+  throw new Error(`field "${key}" is ${typeof value}, expected Date`);
 }
