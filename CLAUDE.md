@@ -169,11 +169,13 @@ controller  →  service  →  repository  →  TypeORM
 | ชั้น | หน้าที่ | ห้ามทำ |
 |---|---|---|
 | **Controller** | รับ HTTP, ประกาศ DTO ให้ `ValidationPipe` ตรวจ, เรียก service, แปลงผลลัพธ์เป็น response DTO, กำหนด status code และ header `Location` | ห้ามมีกฎธุรกิจแม้แต่ `if` เดียว, ห้าม import อะไรจาก `typeorm`, ห้ามประกอบ query, ห้ามส่ง entity ออกไปตรง ๆ, ห้ามดัก error เพื่อแปลงเอง — ปล่อยให้ exception filter จัดการ |
-| **Service** | ตรรกะทั้งหมดของระบบ — กฎ D1/D2 และการตัดสินว่า `updated_at` ควรขยับหรือไม่, normalize ค่า, แปลง serial, ตรวจว่า department มีจริง, กำหนดขอบเขต transaction, โยน domain error | ห้ามรู้จัก HTTP เลย — ไม่มี `Request`/`Response`, ไม่โยน `HttpException` หรือ `NotFoundException`, ห้ามเขียน SQL หรือใช้ `QueryBuilder` เอง, ห้าม inject repository ของ TypeORM ตรง ๆ, ห้ามรู้ว่า response หน้าตาเป็นอย่างไร |
+| **Service** | ตรรกะทั้งหมดของระบบ — กฎ D1/D2 และการตัดสินว่า `updated_at` ควรขยับหรือไม่, normalize ค่า, แปลง serial, ตรวจว่า department มีจริง, กำหนดขอบเขต transaction, โยน domain error | ห้ามรู้จัก HTTP เลย — ไม่มี `Request`/`Response`, ไม่โยน `HttpException` หรือ `NotFoundException`, ห้ามเขียน SQL หรือใช้ `QueryBuilder` เอง, ห้าม inject repository ของ TypeORM ตรง ๆ, ห้ามรู้ว่า response หน้าตาเป็นอย่างไร — **ข้อยกเว้นเดียว** คือ import `DataSource`/`EntityManager` จาก `typeorm` เพื่อ **เปิดขอบเขต transaction เท่านั้น** (`dataSource.transaction(async (manager) => { ... })`) แล้วส่ง `manager` ที่ได้ลงไปให้ repository ทันที ห้ามใช้ `manager` ประกอบ query เองในชั้น service |
 | **Repository** | คุยกับฐานข้อมูลอย่างเดียว — query ตาม filter/sort/pagination ที่ service สั่งมา, upsert ตาม D1, `setval`, รับ `EntityManager` เพื่อร่วม transaction ที่ service เปิดไว้, คืน entity หรือ `null` | ห้ามมีกฎธุรกิจหรือการตัดสินใจใด ๆ เช่น **ห้ามตัดสินเองว่า `updated_at` ควรเป็นค่าไหน** ให้ service ส่งค่าที่ตัดสินแล้วลงมา, ห้ามโยน `HttpException`, ห้ามรู้จัก DTO ของ HTTP |
-| **TypeORM** | ชั้นล่างสุด | แตะได้เฉพาะใน `*.repository.ts`, `*.entity.ts`, `migrations/` และไฟล์ data source เท่านั้น |
+| **TypeORM** | ชั้นล่างสุด | แตะได้เฉพาะใน `*.repository.ts`, `*.entity.ts`, `migrations/`, ไฟล์ data source และการเปิด transaction ใน service ตามข้อยกเว้นข้างบนเท่านั้น |
 
-วิธีตรวจว่าละเมิดหรือยัง — grep หา `from 'typeorm'` ถ้าเจอนอกสี่ที่ข้างบน แปลว่ามีการข้ามชั้น
+วิธีตรวจว่าละเมิดหรือยัง — grep หา `from 'typeorm'` ถ้าเจอนอกสี่ที่ข้างบน **และไม่ใช่การ import `DataSource`/`EntityManager` เพื่อเปิด transaction** แปลว่ามีการข้ามชั้น ตรวจแยกต่างหากว่า service ไม่ได้เรียก `.createQueryBuilder`, `.find*`, `.save`, `.query` บน `manager` เอง — ถ้าเจอแปลว่ากำลังทำหน้าที่ของ repository
+
+**ทำไมต้องมีข้อยกเว้นนี้** — บรรทัด "กำหนดขอบเขต transaction" ในหน้าที่ของ service ทำไม่ได้เลยถ้าห้าม import จาก `typeorm` ทุกกรณี เพราะ `DataSource.transaction()` และ `EntityManager` เป็นชนิดของ TypeORM เอง ทางเลือกที่เคยพิจารณาคือทำ `UnitOfWork` port มากั้นไว้อีกชั้น ซึ่งสะอาดกว่าแต่เพิ่มไฟล์และเวลาโดยที่ยังต้องแก้ CLAUDE.md อยู่ดีเพื่อให้ *ตัว implement* ของ port นั้น (ซึ่งนับเป็น "service" ในความหมายที่ inject เข้า business logic) ใช้ `typeorm` ได้ จึงเลือกเปิดช่องตรงนี้ให้แคบที่สุดเท่าที่จำเป็นแทน — อนุญาตเฉพาะการเปิด/ปิด transaction ไม่อนุญาตให้ query ผ่าน `manager` ในชั้น service
 
 ### 5.2 ทิศทางของ error
 
