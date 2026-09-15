@@ -24,17 +24,11 @@ export function Toast({ toast, onDismiss }: ToastProps) {
   return (
     <div
       role="status"
-      style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        padding: '12px 20px',
-        borderRadius: 6,
-        color: 'white',
-        background: toast.type === 'success' ? '#2e7d32' : '#c62828',
-        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.25)',
-        zIndex: 200,
-      }}
+      className={
+        toast.type === 'success'
+          ? 'fixed bottom-6 right-6 z-[200] rounded-md bg-brand px-5 py-3 text-sm text-white shadow-lg'
+          : 'fixed bottom-6 right-6 z-[200] rounded-md bg-red-600 px-5 py-3 text-sm text-white shadow-lg'
+      }
     >
       {toast.message}
     </div>

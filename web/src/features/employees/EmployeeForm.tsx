@@ -23,6 +23,12 @@ function toFormValues(employee: Employee | undefined): EmployeeFormValues {
   };
 }
 
+const inputClass =
+  'mt-1 block w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand';
+const readOnlyInputClass =
+  'mt-1 block w-full rounded-md border border-gray-200 bg-gray-100 px-2 py-1.5 text-sm text-gray-500';
+const labelClass = 'block text-sm text-gray-600';
+
 export function EmployeeForm({ mode, departments, initialEmployee, onSubmit, onCancel }: EmployeeFormProps) {
   const [values, setValues] = useState<EmployeeFormValues>(() => toFormValues(initialEmployee));
   const [submitting, setSubmitting] = useState(false);
@@ -38,46 +44,40 @@ export function EmployeeForm({ mode, departments, initialEmployee, onSubmit, onC
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 280 }}>
-      <h2 style={{ margin: 0 }}>{mode === 'create' ? 'เพิ่มพนักงาน' : 'แก้ไขพนักงาน'}</h2>
+    <form onSubmit={handleSubmit} className="flex min-w-[280px] flex-col gap-4">
+      <h2 className="text-lg font-semibold text-brand">{mode === 'create' ? 'เพิ่มพนักงาน' : 'แก้ไขพนักงาน'}</h2>
 
       {mode === 'edit' && initialEmployee !== undefined && (
         <>
-          <label>
+          <label className={labelClass}>
             ID
-            <input type="text" value={initialEmployee.id} readOnly disabled style={{ display: 'block', width: '100%' }} />
+            <input type="text" value={initialEmployee.id} readOnly disabled className={readOnlyInputClass} />
           </label>
-          <label>
+          <label className={labelClass}>
             Last Updated Date
-            <input
-              type="text"
-              value={initialEmployee.updated_at}
-              readOnly
-              disabled
-              style={{ display: 'block', width: '100%' }}
-            />
+            <input type="text" value={initialEmployee.updated_at} readOnly disabled className={readOnlyInputClass} />
           </label>
         </>
       )}
 
-      <label>
+      <label className={labelClass}>
         Name
         <input
           type="text"
           required
           value={values.name}
           onChange={(event) => setValues({ ...values, name: event.target.value })}
-          style={{ display: 'block', width: '100%' }}
+          className={inputClass}
         />
       </label>
 
-      <label>
+      <label className={labelClass}>
         Department
         <select
           required
           value={values.departmentId}
           onChange={(event) => setValues({ ...values, departmentId: event.target.value })}
-          style={{ display: 'block', width: '100%' }}
+          className={inputClass}
         >
           <option value="" disabled>
             เลือกแผนก
@@ -90,7 +90,7 @@ export function EmployeeForm({ mode, departments, initialEmployee, onSubmit, onC
         </select>
       </label>
 
-      <label>
+      <label className={labelClass}>
         Salary
         <input
           type="text"
@@ -98,35 +98,45 @@ export function EmployeeForm({ mode, departments, initialEmployee, onSubmit, onC
           required
           value={values.salary}
           onChange={(event) => setValues({ ...values, salary: event.target.value })}
-          style={{ display: 'block', width: '100%' }}
+          className={inputClass}
         />
       </label>
 
-      <label>
+      <label className={labelClass}>
         Join Date
         <input
           type="date"
           required
           value={values.joinDate}
           onChange={(event) => setValues({ ...values, joinDate: event.target.value })}
-          style={{ display: 'block', width: '100%' }}
+          className={inputClass}
         />
       </label>
 
-      <label>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
         <input
           type="checkbox"
           checked={values.isActive}
           onChange={(event) => setValues({ ...values, isActive: event.target.checked })}
-        />{' '}
+          className="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand"
+        />
         Active
       </label>
 
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button type="button" onClick={onCancel} disabled={submitting}>
+      <div className="flex justify-end gap-2 pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          className="rounded-md border border-gray-300 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+        >
           ยกเลิก
         </button>
-        <button type="submit" disabled={submitting}>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-md bg-brand px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
+        >
           {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
         </button>
       </div>
