@@ -1,10 +1,113 @@
-import type { EntityManager } from 'typeorm';
-import { readBoolean, readNumber, readRows } from '../common/pg-row';
+import { Injectable } from '@nestjs/common';
+import { DataSource, type EntityManager } from 'typeorm';
+import { readBoolean, readNumber, readRows, readString } from '../common/pg-row';
 
 /**
  * คุยกับตาราง employees อย่างเดียว ไม่มีกฎธุรกิจใด ๆ ตาม CLAUDE.md §5.1
  * รับ EntityManager เพื่อร่วม transaction ที่ service เปิดไว้เสมอ
  */
+
+/** Contract read path ของ S2 — repository รับคำสั่งที่ service canonicalize แล้วเท่านั้น */
+export interface EmployeeReadQuery {
+  sort: string;
+  order: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface EmployeeReadRow {
+  id: number;
+  name: string;
+  departmentId: number;
+  departmentName: string;
+  salary: string;
+  joinDate: string;
+  isActive: boolean;
+  updatedAt: Date;
+}
+
+export interface EmployeeReadPage {
+  rows: readonly EmployeeReadRow[];
+  total: number;
+}
+
+const SORT_COLUMN_BY_KEY: ReadonlyMap<string, string> = new Map([
+  ['id', 'e.id'],
+  ['name', 'e.name'],
+  ['salary', 'e.salary'],
+  ['join_date', 'e.join_date'],
+  ['updated_at', 'e.updated_at'],
+]);
+
+function readDate(row: unknown, key: string): Date {
+  if (typeof row !== 'object' || row === null) {
+    throw new Error(`expected an object row, got ${typeof row}`);
+  }
+  const value = Reflect.get(row, key);
+  if (value instanceof Date) return value;
+  throw new Error(`field "${key}" is ${typeof value}, expected Date`);
+}
+
+/** raw SQL สำหรับ read path: identifier มาจาก whitelist เท่านั้น ตาม CLAUDE.md §5 */
+@Injectable()
+export class EmployeesRepository {
+  constructor(private readonly dataSource: DataSource) {}
+
+  async findPage(query: EmployeeReadQuery): Promise<EmployeeReadPage> {
+    const sortColumn = SORT_COLUMN_BY_KEY.get(query.sort);
+    if (sortColumn === undefined) {
+      throw new Error(`unexpected employee sort key: ${query.sort}`);
+    }
+    const order = query.order === 'desc' ? 'DESC' : 'ASC';
+    const offset = (query.page - 1) * query.pageSize;
+
+    const rowsResult: unknown = await this.dataSource.query(
+      `SELECT e.id, e.name, e.department_id, d.name AS department_name,
+              e.salary, e.join_date::text AS join_date, e.is_active, e.updated_at
+       FROM employees e
+       INNER JOIN departments d ON d.id = e.department_id
+       ORDER BY ${sortColumn} ${order}, e.id ASC
+       LIMIT $1 OFFSET $2`,
+      [query.pageSize, offset],
+    );
+    const totalResult: unknown = await this.dataSource.query(
+      'SELECT count(*)::int AS total FROM employees',
+    );
+
+    const totalRows = readRows(totalResult);
+    return {
+      rows: readRows(rowsResult).map((row) => this.toReadRow(row)),
+      total: readNumber(totalRows[0], 'total'),
+    };
+  }
+
+  async findById(id: number): Promise<EmployeeReadRow | null> {
+    const result: unknown = await this.dataSource.query(
+      `SELECT e.id, e.name, e.department_id, d.name AS department_name,
+              e.salary, e.join_date::text AS join_date, e.is_active, e.updated_at
+       FROM employees e
+       INNER JOIN departments d ON d.id = e.department_id
+       WHERE e.id = $1`,
+      [id],
+    );
+    const rows = readRows(result);
+    const [row] = rows;
+    return row === undefined ? null : this.toReadRow(row);
+  }
+
+  private toReadRow(row: unknown): EmployeeReadRow {
+    return {
+      id: readNumber(row, 'id'),
+      name: readString(row, 'name'),
+      departmentId: readNumber(row, 'department_id'),
+      departmentName: readString(row, 'department_name'),
+      salary: readString(row, 'salary'),
+      joinDate: readString(row, 'join_date'),
+      isActive: readBoolean(row, 'is_active'),
+      updatedAt: readDate(row, 'updated_at'),
+    };
+  }
+}
 
 export interface UpsertEmployeeInput {
   id: number;

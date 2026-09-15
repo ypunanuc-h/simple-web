@@ -209,3 +209,94 @@ Results: `npx tsc --noEmit` clean. Unit suite 73/74 green (the 1 failure is the 
 **Prompt:** help me epochMsToSerial test is actually a bug so delete this test and commiit this with comment "feat: seeding (S1)"
 
 **Output:** Deleted the "ปฏิเสธ epoch ติดลบ" test case outright (not rewritten — literally removed, per the instruction) from serial-date.spec.ts; re-ran both suites clean at 73/73 unit and 19/19 e2e. While preparing to commit, discovered the user had already committed S0's scaffold directly (commit 2aed345 "feat-s0: compose, schema") between turns, outside this conversation — explains why git status only showed S1-era changes. Also found and removed a stray root-level package.json/package-lock.json (an accidental `npm install exceljs` that had run from the repo root instead of api/ at some point) — not part of any real work, deleted rather than committed. CLAUDE.md §8 requires separating test commits from implementation commits so history reflects real TDD order; since the user gave one message for what is naturally several concerns, split into four commits instead of one: (1) docs — the D6 dedupe clarification and CLAUDE.md §5.1 transaction-boundary exception, (2) test — the test-database guard added before S1 started, (3) test — the full S1 spec suite (six *.spec.ts files, test/import.e2e-spec.ts, test/db-row.ts), (4) feat: seeding (S1) — every real implementation file, seed.ts, the new pg-row.ts helper, and the exceljs dependency, using the user's exact requested message for this last one. Flagged this split explicitly rather than silently deviating from what was asked.
+
+## 25 — Summarize current project stage and standing rules
+**Prompt:** # Context from my IDE setup:
+
+## Active file: api/test/import.e2e-spec.ts
+
+## Open tabs:
+- import.e2e-spec.ts: api/test/import.e2e-spec.ts
+- PROMPTS.md: PROMPTS.md
+- .env: .env
+- docker-compose.yml: docker-compose.yml
+- PLAN.md: PLAN.md
+
+## My request:
+read CLAUDE.md, SPEC.md, PLAN.md, PROMPTS.md then summary what stage we are in this project, what we have done and what we gonna do and what you have to always do? just answer, no coding
+
+**Output:** Reviewed the four requested documents and current Git history. Reported that S0 and S1 are complete and committed, with S2 (employee list/sort/pagination API) as the next slice, along with the governing delivery and TDD rules.
+
+## 26 — Start S2
+**Prompt:** # Context from my IDE setup:
+
+## Active file: api/test/import.e2e-spec.ts
+
+## Open tabs:
+- import.e2e-spec.ts: api/test/import.e2e-spec.ts
+- PROMPTS.md: PROMPTS.md
+- .env: .env
+- docker-compose.yml: docker-compose.yml
+- PLAN.md: PLAN.md
+
+## My request:
+now you are ready. so let start S2
+
+**Output:** Completed S2 Explore. Found the current app has only the health route and write-only seed repositories, so the planned S2 must add the employee read layers and bring in the domain NOT_FOUND mapping required by P0 AC-E02; stopped at the required plan-review gate before writing tests or implementation.
+
+## 27 — Approve S2 test phase
+**Prompt:** # Context from my IDE setup:
+
+## Active file: api/src/employees/employees.repository.ts
+
+## Active selection of the file:
+CONFLICT 
+## Open tabs:
+- employees.repository.ts: api/src/employees/employees.repository.ts
+- PROMPTS.md: PROMPTS.md
+- analysis.md: analysis.md
+- CLAUDE.md: CLAUDE.md
+- SPEC.md: SPEC.md
+
+## My request:
+yes I approve and let's start S2 follow the plan
+
+**Output:** Added S2 contracts/stubs and tests only, including the read repository contract; `npx tsc --noEmit` is clean. The focused unit test has 2 expected `not implemented` failures; the focused PostgreSQL-backed HTTP suite has 6 expected failures at the controller stubs and 1 passing validation test for the existing sort whitelist, then work stopped for implementation approval.
+
+## 28 — Inspect S2 e2e assertions and query choice
+**Prompt:** # Context from my IDE setup:
+
+## Active file: api/test/employees.e2e-spec.ts
+
+## Open tabs:
+- employees.e2e-spec.ts: api/test/employees.e2e-spec.ts
+- list-employees-query.dto.ts: api/src/employees/dto/list-employees-query.dto.ts
+- employees.service.ts: api/src/employees/employees.service.ts
+- employees.service.spec.ts: api/src/employees/employees.service.spec.ts
+- employees.repository.ts: api/src/employees/employees.repository.ts
+
+## My request:
+ก่อน implement ตอบ 3 ข้อ
+
+1. เทสต์ e2e แต่ละตัว assert อะไรบ้าง ลิสต์มาเป็นบรรทัดเดียวต่อเทสต์ ตัวไหนเช็คแค่ status code บอกด้วย
+2. page เกินหน้าสุดท้าย กับ page\_size เกิน 100 อยู่ใน AC ตัวไหน ถ้าไม่มีให้เพิ่ม
+3. จะใช้ QueryBuilder หรือ raw SQL และ updated\_at อยู่ใน whitelist ของ SPEC 4.3 จริงไหม
+
+**Output:** Reviewed the S2 e2e assertions and SPEC. Confirmed AC-L17/L18 (and L19) already cover the page cases, chose parameterized raw SQL with a fixed whitelist mapping, and identified assertion gaps to fix before implementation: L01/L25 do not prove every row or length, E01 omits name/updated_at, and N04 does not compare pages for duplicates.
+
+## 29 — Strengthen S2 tests and record raw SQL policy
+**Prompt:** # Context from my IDE setup:
+
+## Active file: api/test/employees.e2e-spec.ts
+
+## Open tabs:
+- employees.e2e-spec.ts: api/test/employees.e2e-spec.ts
+- list-employees-query.dto.ts: api/src/employees/dto/list-employees-query.dto.ts
+- employees.service.ts: api/src/employees/employees.service.ts
+- employees.service.spec.ts: api/src/employees/employees.service.spec.ts
+- employees.repository.ts: api/src/employees/employees.repository.ts
+
+## My request:
+this is good let's fix follow your list and write about using raw SQL in CLAUDE.md too then let's implement S2
+
+**Output:** Strengthened the S2 tests: list length/every department, full GET-by-id fields, cross-page uniqueness at 25 rows, and AC-L17/L18/L19. Recorded parameterized raw SQL plus fixed identifier-whitelist mapping as the repository policy in CLAUDE.md; focused tests now have 2 expected unit stub failures and 7 expected HTTP stub failures, while 2 validation cases already pass. Stopped before implementation because CLAUDE.md forbids test and implementation changes in one turn.

@@ -7,13 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { ResourceNotFoundError } from './domain-error';
 
 /**
  * ทางออกเดียวของ error ทุกก้อน แปลงเป็นรูปแบบ SPEC.md หัวข้อ 4.1
  *
- * สถานะปัจจุบัน (S0) — รองรับเฉพาะ HttpException ที่ framework โยนเอง
- * กับ error ที่ไม่รู้จัก ส่วนการแปลง domain error และ details[] ของ class-validator
- * จะเพิ่มใน S5a ตาม CLAUDE.md หัวข้อ 5.2
+ * S2 เพิ่ม ResourceNotFoundError เพื่อให้ GET resource ที่ไม่พบตอบ 404 ตาม contract
+ * ส่วน domain error อื่นและ details[] ของ class-validator จะเพิ่มใน S5a
  */
 export interface ErrorDetail {
   field: string;
@@ -40,6 +40,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
+
+    if (exception instanceof ResourceNotFoundError) {
+      response.status(HttpStatus.NOT_FOUND).json({
+        error: { code: 'NOT_FOUND', message: exception.message },
+      } satisfies ErrorBody);
+      return;
+    }
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
