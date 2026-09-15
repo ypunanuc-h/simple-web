@@ -55,4 +55,25 @@ describe('buildEmployeeQuery', () => {
     const query = buildEmployeeQuery({ ...EMPTY_VALUES, salaryMin: '100000000.10' });
     expect(new URLSearchParams(query).get('salary_min')).toBe('100000000.10');
   });
+
+  it('ไม่ระบุ sortState เลย ไม่มี sort/order ใน query string', () => {
+    const query = buildEmployeeQuery(EMPTY_VALUES);
+    expect(new URLSearchParams(query).has('sort')).toBe(false);
+    expect(new URLSearchParams(query).has('order')).toBe(false);
+  });
+
+  it('sortState ที่ระบุคอลัมน์ถูกใส่ลง query string ทั้ง sort และ order', () => {
+    const query = buildEmployeeQuery(EMPTY_VALUES, { sort: 'salary', order: 'desc' });
+    const params = new URLSearchParams(query);
+    expect(params.get('sort')).toBe('salary');
+    expect(params.get('order')).toBe('desc');
+  });
+
+  it('sortState รวมกับ filter อื่นพร้อมกันได้', () => {
+    const query = buildEmployeeQuery({ ...EMPTY_VALUES, q: 'jo' }, { sort: 'join_date', order: 'asc' });
+    const params = new URLSearchParams(query);
+    expect(params.get('q')).toBe('jo');
+    expect(params.get('sort')).toBe('join_date');
+    expect(params.get('order')).toBe('asc');
+  });
 });
