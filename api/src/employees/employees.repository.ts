@@ -7,12 +7,19 @@ import { readBoolean, readNumber, readRows, readString } from '../common/pg-row'
  * รับ EntityManager เพื่อร่วม transaction ที่ service เปิดไว้เสมอ
  */
 
-/** Contract read path ของ S2 — repository รับคำสั่งที่ service canonicalize แล้วเท่านั้น */
+/** Contract read path — repository รับคำสั่งที่ service canonicalize แล้วเท่านั้น */
 export interface EmployeeReadQuery {
   sort: string;
   order: string;
   page: number;
   pageSize: number;
+  q?: string;
+  departmentId?: number;
+  isActive?: boolean;
+  joinDateFrom?: string;
+  joinDateTo?: string;
+  salaryMin?: string;
+  salaryMax?: string;
 }
 
 export interface EmployeeReadRow {
@@ -29,6 +36,25 @@ export interface EmployeeReadRow {
 export interface EmployeeReadPage {
   rows: readonly EmployeeReadRow[];
   total: number;
+}
+
+export interface CreateEmployeeInput {
+  name: string;
+  departmentId: number;
+  salary: string;
+  joinDate: string;
+  isActive: boolean;
+  updatedAt: Date;
+}
+
+export interface UpdateEmployeeInput {
+  id: number;
+  name: string;
+  departmentId: number;
+  salary: string;
+  joinDate: string;
+  isActive: boolean;
+  updatedAt: Date;
 }
 
 const SORT_COLUMN_BY_KEY: ReadonlyMap<string, string> = new Map([
@@ -61,17 +87,42 @@ export class EmployeesRepository {
     const order = query.order === 'desc' ? 'DESC' : 'ASC';
     const offset = (query.page - 1) * query.pageSize;
 
+    // เงื่อนไข AND ทั้งหมดเป็น SQL คงที่เดียวกันเสมอ ค่าที่ไม่ได้กรองส่งเป็น NULL ให้เงื่อนไขนั้น
+    // no-op เอง — ไม่มีการต่อ string จาก query parameter ลง SQL ที่จุดใดเลย (CLAUDE.md §5)
+    const filterParams: (string | number | boolean | null)[] = [
+      query.q ?? null,
+      query.departmentId ?? null,
+      query.isActive ?? null,
+      query.joinDateFrom ?? null,
+      query.joinDateTo ?? null,
+      query.salaryMin ?? null,
+      query.salaryMax ?? null,
+    ];
+    const whereClause = `
+      WHERE ($1::text IS NULL OR e.name ILIKE '%' || $1 || '%')
+        AND ($2::int IS NULL OR e.department_id = $2)
+        AND ($3::boolean IS NULL OR e.is_active = $3)
+        AND ($4::date IS NULL OR e.join_date >= $4)
+        AND ($5::date IS NULL OR e.join_date <= $5)
+        AND ($6::numeric IS NULL OR e.salary >= $6)
+        AND ($7::numeric IS NULL OR e.salary <= $7)
+    `;
+
     const rowsResult: unknown = await this.dataSource.query(
       `SELECT e.id, e.name, e.department_id, d.name AS department_name,
               e.salary, e.join_date::text AS join_date, e.is_active, e.updated_at
        FROM employees e
        INNER JOIN departments d ON d.id = e.department_id
+       ${whereClause}
        ORDER BY ${sortColumn} ${order}, e.id ASC
-       LIMIT $1 OFFSET $2`,
-      [query.pageSize, offset],
+       LIMIT $8 OFFSET $9`,
+      [...filterParams, query.pageSize, offset],
     );
     const totalResult: unknown = await this.dataSource.query(
-      'SELECT count(*)::int AS total FROM employees',
+      `SELECT count(*)::int AS total
+       FROM employees e
+       ${whereClause}`,
+      filterParams,
     );
 
     const totalRows = readRows(totalResult);
@@ -93,6 +144,61 @@ export class EmployeesRepository {
     const rows = readRows(result);
     const [row] = rows;
     return row === undefined ? null : this.toReadRow(row);
+  }
+
+  /** id มาจาก identity sequence เสมอตาม D10 — ไม่รับ id จากผู้เรียก */
+  async insert(input: CreateEmployeeInput): Promise<number> {
+    const result: unknown = await this.dataSource.query(
+      `INSERT INTO employees (name, department_id, salary, join_date, is_active, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [
+        input.name,
+        input.departmentId,
+        input.salary,
+        input.joinDate,
+        input.isActive,
+        input.updatedAt.toISOString(),
+      ],
+    );
+    const rows = readRows(result);
+    return readNumber(rows[0], 'id');
+  }
+
+  /**
+   * service เรียกเมธอดนี้เฉพาะตอนตัดสินใจแล้วว่าข้อมูลเปลี่ยนจริงตาม D2 — updatedAt
+   * ที่ส่งมาจึงเป็นค่าที่ service ตัดสินใจแล้วเสมอ (Clock.now() หรือค่าเดิม) ไม่ใช่ default ของ repository
+   */
+  async update(input: UpdateEmployeeInput): Promise<void> {
+    await this.dataSource.query(
+      `UPDATE employees
+       SET name = $2, department_id = $3, salary = $4, join_date = $5, is_active = $6, updated_at = $7
+       WHERE id = $1`,
+      [
+        input.id,
+        input.name,
+        input.departmentId,
+        input.salary,
+        input.joinDate,
+        input.isActive,
+        input.updatedAt.toISOString(),
+      ],
+    );
+  }
+
+  async deleteById(id: number): Promise<boolean> {
+    // TypeORM's postgres driver คืนผลของ DELETE/UPDATE เป็น tuple [rows, rowCount] เสมอ
+    // (ต่างจาก SELECT/INSERT ที่คืน rows ตรง ๆ) — ต้อง destructure ก่อน มิฉะนั้น
+    // readRows(result) จะเห็นแค่ length ของ tuple 2 ช่อง ซึ่งเป็น 2 เสมอไม่ว่าจะลบได้จริงหรือไม่
+    const result: unknown = await this.dataSource.query(
+      'DELETE FROM employees WHERE id = $1 RETURNING id',
+      [id],
+    );
+    if (!Array.isArray(result)) {
+      throw new Error(`expected a [rows, rowCount] tuple, got ${typeof result}`);
+    }
+    const [rows] = result;
+    return readRows(rows).length > 0;
   }
 
   private toReadRow(row: unknown): EmployeeReadRow {

@@ -1,4 +1,4 @@
-import { readArray, readBoolean, readField, readNumber, readString } from './json';
+import { asArray, readArray, readBoolean, readField, readNumber, readString } from './json';
 
 export interface EmployeeDepartment {
   readonly id: number;
@@ -61,8 +61,9 @@ async function extractErrorMessage(response: Response): Promise<string> {
   }
 }
 
-export async function fetchEmployees(): Promise<EmployeeListResult> {
-  const response = await fetch('/api/employees');
+export async function fetchEmployees(queryString: string = ''): Promise<EmployeeListResult> {
+  const url = queryString === '' ? '/api/employees' : `/api/employees?${queryString}`;
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response));
   }
@@ -71,4 +72,13 @@ export async function fetchEmployees(): Promise<EmployeeListResult> {
     employees: readArray(body, 'data').map((row) => toEmployee(row)),
     meta: toMeta(readField(body, 'meta')),
   };
+}
+
+export async function fetchDepartments(): Promise<readonly EmployeeDepartment[]> {
+  const response = await fetch('/api/departments');
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  const body: unknown = await response.json();
+  return asArray(body).map((row) => toDepartment(row));
 }

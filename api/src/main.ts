@@ -1,8 +1,8 @@
 import 'reflect-metadata';
-import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http-exception.filter';
+import { buildValidationPipe } from './common/validation-pipe';
 import { envOrDefault } from './common/env';
 
 async function bootstrap(): Promise<void> {
@@ -12,13 +12,8 @@ async function bootstrap(): Promise<void> {
 
   // whitelist + forbidNonWhitelisted ทำให้ AC-E08 และ AC-L20 ผ่านโดยไม่ต้องเขียนโค้ดเอง
   // คือ field หรือ query param ที่ไม่รู้จักถูกปฏิเสธด้วย 400 ไม่ใช่ข้ามไปเงียบ ๆ
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+  // exceptionFactory แปลง error เป็น ValidationFailedError ให้ filter จัดการต่อจุดเดียว (S5a)
+  app.useGlobalPipes(buildValidationPipe());
 
   app.useGlobalFilters(new AllExceptionsFilter());
 

@@ -42,3 +42,11 @@ export function readArray(row: unknown, key: string): readonly unknown[] {
   }
   return value;
 }
+
+/** ใช้ตอนตัว response.json() เองต้องเป็น array ตรง ๆ (เช่น GET /api/departments ที่ไม่ห่อด้วย {data: [...]}) */
+export function asArray(value: unknown): readonly unknown[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`expected an array, got ${typeof value}`);
+  }
+  return value;
+}

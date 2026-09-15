@@ -1,4 +1,20 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  Res,
+} from '@nestjs/common';
+import type { Response } from 'express';
+import { CreateEmployeeDto } from './dto/create-employee.dto';
+import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { EmployeesService, type EmployeeListResult } from './employees.service';
 import type { EmployeeReadRow } from './employees.repository';
@@ -27,6 +43,13 @@ export class EmployeesController {
       order: query.order,
       page: query.page,
       pageSize: query.page_size,
+      q: query.q,
+      departmentId: query.department_id,
+      isActive: query.is_active,
+      joinDateFrom: query.join_date_from,
+      joinDateTo: query.join_date_to,
+      salaryMin: query.salary_min,
+      salaryMax: query.salary_max,
     });
     return this.toListResponse(result);
   }
@@ -34,6 +57,44 @@ export class EmployeesController {
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number): Promise<EmployeeResponse> {
     return this.toEmployeeResponse(await this.employeesService.findOne(id));
+  }
+
+  @Post()
+  async create(
+    @Body() dto: CreateEmployeeDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<EmployeeResponse> {
+    const employee = await this.employeesService.create({
+      name: dto.name,
+      departmentId: dto.department_id,
+      salary: dto.salary,
+      joinDate: dto.join_date,
+      isActive: dto.is_active,
+    });
+    res.setHeader('Location', `/api/employees/${employee.id}`);
+    res.status(HttpStatus.CREATED);
+    return this.toEmployeeResponse(employee);
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateEmployeeDto,
+  ): Promise<EmployeeResponse> {
+    const employee = await this.employeesService.update(id, {
+      name: dto.name,
+      departmentId: dto.department_id,
+      salary: dto.salary,
+      joinDate: dto.join_date,
+      isActive: dto.is_active,
+    });
+    return this.toEmployeeResponse(employee);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.employeesService.delete(id);
   }
 
   private toListResponse(result: EmployeeListResult): {

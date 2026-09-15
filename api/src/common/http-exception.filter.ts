@@ -7,19 +7,16 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { ResourceNotFoundError } from './domain-error';
+import { ResourceNotFoundError, ValidationFailedError, type FieldErrorDetail } from './domain-error';
 
 /**
  * ทางออกเดียวของ error ทุกก้อน แปลงเป็นรูปแบบ SPEC.md หัวข้อ 4.1
  *
  * S2 เพิ่ม ResourceNotFoundError เพื่อให้ GET resource ที่ไม่พบตอบ 404 ตาม contract
- * ส่วน domain error อื่นและ details[] ของ class-validator จะเพิ่มใน S5a
+ * S5a เพิ่ม ValidationFailedError ที่รวม error จาก DTO (ผ่าน exceptionFactory ใน
+ * common/validation-pipe.ts) และจากกฎที่ service ตรวจเองไว้ในรูปแบบเดียวกัน
  */
-export interface ErrorDetail {
-  field: string;
-  rule: string;
-  message: string;
-}
+export type ErrorDetail = FieldErrorDetail;
 
 export interface ErrorBody {
   error: {
@@ -44,6 +41,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof ResourceNotFoundError) {
       response.status(HttpStatus.NOT_FOUND).json({
         error: { code: 'NOT_FOUND', message: exception.message },
+      } satisfies ErrorBody);
+      return;
+    }
+
+    if (exception instanceof ValidationFailedError) {
+      response.status(HttpStatus.BAD_REQUEST).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'ข้อมูลที่ส่งมาไม่ถูกต้อง',
+          details: exception.details,
+        },
       } satisfies ErrorBody);
       return;
     }
