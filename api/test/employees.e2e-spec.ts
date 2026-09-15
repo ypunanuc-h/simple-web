@@ -378,6 +378,28 @@ describe('Employees HTTP API (S2)', () => {
     }
   });
 
+  it('AC-L22: salary_min มากกว่า salary_max ตอบ 400 VALIDATION_ERROR', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/employees')
+      .query({ salary_min: '70000', salary_max: '50000' })
+      .expect(400);
+
+    expect(response.body).toEqual({
+      error: expect.objectContaining({ code: 'VALIDATION_ERROR' }),
+    });
+  });
+
+  it('AC-L23: join_date_from มากกว่า join_date_to ตอบ 400 VALIDATION_ERROR', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/employees')
+      .query({ join_date_from: '2024-12-31', join_date_to: '2024-01-01' })
+      .expect(400);
+
+    expect(response.body).toEqual({
+      error: expect.objectContaining({ code: 'VALIDATION_ERROR' }),
+    });
+  });
+
   it('join_date_from รูปแบบถูกแต่ไม่ใช่วันจริงตามปฏิทิน (30 ก.พ.) ตอบ 400 ไม่ใช่ 500', async () => {
     const response = await request(app.getHttpServer())
       .get('/api/employees')
