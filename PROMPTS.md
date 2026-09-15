@@ -376,3 +376,63 @@ this is good let's fix follow your list and write about using raw SQL in CLAUDE.
 **Prompt:** let's commit and push
 
 **Output:** Split the combined S4 (search/filter, departments GET) and S5a (employee CRUD) work into a `test:` commit and a `feat:` commit rather than trying to separate the two slices, since several files (employees.controller/repository/service.ts, employees.e2e-spec.ts) were touched by both and no longer have a clean stub-state boundary to split on. Pushed both to `origin/main`.
+
+## 45 — Summarize project stage again after S4 + S5a commit
+**Prompt:** read CLAUDE.md, SPEC.md, PLAN.md, PROMPTS.md then summary what stage we are in this project, what we have done and what we gonna do? just answer, no coding
+
+**Output:** Re-read all four governing docs and confirmed git status is clean at commit 3b356d9 with S0–S4 and S5a done (P0 AC 1–34 of 39 closed). Reported S6 (create-employee form + delete confirmation, 3 remaining P0 items) as next, followed by S8's final report, and restated the standing rules (TDD Explore→Plan→Test→Implement, Thai replies, PROMPTS.md logging, no commit/push without explicit instruction).
+
+## 46 — Expand S6 scope to full web CRUD (create, edit, delete)
+**Prompt:** as plan S6 seem like we only have API for PUT but I want UI edit data on website too actually both create update delete should can do with website page
+
+**Output:** Explored the current web state (`EmployeeListPage.tsx` is read-only, `api-client.ts` has only GET calls, no router installed anywhere) and found this expansion crosses CLAUDE.md's Plan-gate (touches >3 files, more than one reasonable navigation approach). Used AskUserQuestion to ask whether the edit form should route to a real URL via `react-router-dom` (a new dependency, must be asked per CLAUDE.md §2) or toggle view state within the single page with no new dependency.
+
+## 47 — Choose no-router with modals; present the full S6 plan
+**Prompt:** I want to go with first solution but I want modal for form create and update and delete not new page
+
+**Output:** Presented the full S6 plan per CLAUDE.md's mandatory stop-and-ask: a TDD-gated `employee-payload.ts` (form values → POST/PUT body, the one piece with real conversion logic), plus direct-write `api-client.ts` additions (create/update/delete), a generic `Modal.tsx` overlay, and a shared `EmployeeForm.tsx` used for both create and edit (create hides the ID/Last-Updated fields per AC-UI05, edit shows them read-only per AC-UI06), wired into `EmployeeListPage.tsx` with per-row edit/delete buttons and a delete-confirm modal. Noted this pulls PLAN.md §6.1's deferred "edit via form" item into committed S6 scope, recovers AC-UI05/UI06, and raises the budget by roughly 0.7h. Stopped for approval before writing any code.
+
+## 48 — Approve plan, add success/error toast; write employee-payload.ts stub + tests
+**Prompt:** approve plan, but I want to add toast in case of error and success too as "success create employee"
+
+**Output:** Folded a small custom `Toast.tsx` (no new dependency, no TDD gate — just display timing) into the plan. Wrote `employee-payload.ts` as a throwing stub and `employee-payload.spec.ts` with 6 cases: full conversion, name trim, **D7** (salary stays an exact string, never passed through `Number`), `departmentId` string→number coercion, `is_active` boolean passthrough, and **D10** (no `id` field in the output ever). `npx tsc -p tsconfig.jest.json --noEmit` clean; all 6 tests fail exactly at the stub's `not implemented` throw. Stopped per CLAUDE.md's TDD gate for review.
+
+## 49 — Implement full CRUD from the web (create/edit/delete + toast)
+**Prompt:** approve test case, continue
+
+**Output:** Implemented `buildEmployeePayload` (6/6 tests green), then wrote the rest directly per the approved plan: `createEmployee`/`updateEmployee`/`deleteEmployee` in `api-client.ts`; `Modal.tsx` (generic overlay, no logic); `Toast.tsx` (auto-dismissing, 4s); `EmployeeForm.tsx` shared between create/edit modes (AC-UI05/UI06 read-only-ID handling); and `EmployeeListPage.tsx` wired with a create button, per-row edit/delete buttons, both modals, and toast state — create/update keep the modal open and show an error toast on failure (so the user's input isn't lost) and close+refresh+success-toast on success; delete always closes its confirm modal and toasts either way. Verified: `npx tsc -b --force` (app) and `npx tsc -p tsconfig.jest.json --noEmit` (tests) both clean, full Jest suite 18/18 green with no regressions, and every new/edited module served HTTP 200 through the already-running Vite dev container (`docker compose ps` showed all three services healthy) confirming no compile errors — but no browser tool exists in this environment, so visual/interactive confirmation is still pending from the user. Updated `PLAN.md`: S6 is now "ฟอร์มสร้าง/แก้ไข + ยืนยันการลบ + toast" at 2.0h (was 1.3h), removed the now-absorbed "edit via form" and "lock ID/Last-Updated" items from §6.1's add-list (6.7h → 6.0h), and updated §2.1's total to 16.5h against the 16.0h available — flagging the budget as **-0.5h over**, the first time this plan has gone negative, while noting the "hours" figures are the original budget units, not a live clock across this many conversation turns.
+
+## 50 — Confirm S6 complete after manual browser testing
+**Prompt:** I already test through localhost, it's okay for work due to we add more details opn this slice so I think this S6 is completed
+
+**Output:** Per CLAUDE.md §3 step 4 (run the whole suite once before declaring a slice done), ran both full backend suites even though S6 was frontend-only: API unit 103/103 green, API e2e 78/78 green (`employees`, `departments`, `import`, `schema` all passing) — no regressions from the S6 work. Combined with the already-confirmed web unit suite (18/18) and the user's own manual browser verification, S6 is closed out. `git status` shows 9 uncommitted paths (`PLAN.md`, `PROMPTS.md`, `EmployeeListPage.tsx`, `api-client.ts` modified; `EmployeeForm.tsx`, `Modal.tsx`, `Toast.tsx`, `employee-payload.ts`, `employee-payload.spec.ts` new) — left in the working tree per CLAUDE.md §8, not committed. Named S8 (final P0 report + README) as the only slice left per `PLAN.md`.
+
+## 51 — What is S7?
+**Prompt:** what is S7?
+
+**Output:** Explained S7 is the deferred department write-side CRUD + management page (`POST`/`PUT`/`DELETE /api/departments` plus the UI to use them) — currently only `GET /api/departments` exists. It sits in `PLAN.md` §6.1's optional add-list, item 8, 1.5h, worth AC-D02–D14 and AC-UI03, and was never part of the base 16h budget. Noted it can't be picked up yet since S6's scope growth already put the plan 0.5h over budget; S8 remains next. Fixed a stale cross-reference in §7.3 ("ข้อ 10 (S7)" / "ข้อ 9") left over from my own earlier edit that removed two items from §6.1's numbered list — corrected to "ข้อ 8 (S7)" / "ข้อ 7".
+
+## 52 — Start S8
+**Prompt:** yes let move on to S8
+
+**Output:** Read the rest of `SPEC.md` §7 (7.1–7.10, not yet seen in full this session) and grepped every `AC-` tag across `api/src`, `api/test`, and `web/src` to cross-check real test evidence against the 39-item P0 list before writing any report. Found 3 P0 criteria (AC-UI02, UI04, UI07 — all from S6's form/delete UI) with zero automated test coverage, which directly conflicts with CLAUDE.md §6's unconditional "all 39 P0 criteria must have an automated test" rule; the gap exists because `web/`'s Jest has always run with `testEnvironment: 'node'` (no jsdom), so only pure functions have ever been tested, never rendered components. Stopped and used AskUserQuestion to ask whether to add jsdom + React Testing Library and write the 3 missing tests now, or record the gap in the report and move on.
+
+## 53 — Record the gap; finish S8 (ACCEPTANCE.md + README.md)
+**Prompt:** "บันทึกเป็น known gap ในรายงาน" (AskUserQuestion answer)
+
+**Output:** Recorded the AC-UI02/04/07 gap as documented-not-fixed. Continuing the audit surfaced a second, larger problem: `PLAN.md` §6.1's "not done yet" add-list had gone stale — S5b's entire scope (V02, V03, V06–V18) was actually absorbed into S5a back in prompts #41–43 when the user chose to implement full §5.1 rather than P0-only, and most of the import edge-case tests (I08, I09, I11–I17) were already written across S1/S4 — neither was ever removed from the "still to do" list. Corrected §6.1's table (only I10/I18 genuinely remain from the import group; D02 is done, only D03–D14 remain for departments) and recalculated its total from 6.0h to 4.4h, dropping the "true total remaining scope" figure from 22.5h to 20.9h. Wrote `ACCEPTANCE.md`: the full 39-item P0 table grouped by SPEC section with a file:line test citation per item, the UI0x gap called out prominently with its CLAUDE.md §6 conflict spelled out, the 4 mandatory dataset traps (§7.10 item 2) reconfirmed, and a corrected 17-item P1 not-done list with AC ids (§7.10 item 3) — down from the stale plan's larger implied count. Rewrote `README.md` (stack, `docker compose up`, seed command, test commands for both unit/e2e suites, project structure with layer-direction reasoning, current status). Reran the full API suite fresh as a final accuracy check: unit 103/103, e2e 78/78, both green, matching the numbers written into the report.
+
+## 54 — Plan Tailwind v4 styling + quick-sort on Salary/Join Date/Last Updated
+**Prompt:** can you help me add styling using Tailwind v4 for the website, make it simple but can see clean UI with white base and #09532de6 and I want  on column Salary	Join Date	and Last Updated (UTC) can quick sort min -> max and max -> min
+
+**Output:** Explored first and found the API already whitelists `sort=salary`, `sort=join_date`, `sort=updated_at` (`list-employees-query.dto.ts`), already tested since S2 (AC-L14) — so this request is frontend-only, no API contract change needed. Presented a plan since it touches more than 3 web files: Tailwind v4 via the official `@tailwindcss/vite` plugin, a new `index.css` with a `@theme` color token for the requested brand color, a TDD-gated `sort-state.ts` (click-to-toggle sort direction) plus an extension to `build-query.ts` to carry `sort`/`order`, and direct restyling of `EmployeeListPage`/`EmployeeForm`/`Modal`/`Toast` with Tailwind classes. Scoped sorting to exactly the 3 requested columns. Stopped for approval before touching any files.
+
+## 55 — Approve plan, fix the color, write sort-state.ts + build-query.ts stubs and tests
+**Prompt:** approve plan but one thing I give wrong color it should be #09532d no e6
+
+**Output:** Corrected the brand color to `#09532d` (dropped the `e6` alpha the user had mistakenly included). Wrote `sort-state.ts`'s `nextSortState` as a throwing stub with 5 tests (first click on an unsorted column starts at `asc`; clicking the active column toggles `asc`↔`desc` both directions; switching to a different column resets to `asc` rather than inheriting the previous direction; all 3 supported columns work). Extended `build-query.ts` with an optional `sortState` parameter defaulting to "no sort" — added the `throw` only on the new `sortState.sort !== null` branch so every pre-existing filter test keeps passing untouched — and added 3 new `build-query.spec.ts` cases (no sortState → no params, sortState sets both `sort`/`order`, combines with other filters). `tsc -p tsconfig.jest.json --noEmit` clean; ran only the two affected spec files: 7 failed exactly at the stub throws, 7 passed (all pre-existing `build-query` cases untouched). Stopped per CLAUDE.md's TDD gate for review.
+
+## 56 — Commit S6 and S8 separately; leave the in-progress styling/sort work uncommitted
+**Prompt:** test case is fine but am I commit S8 yet? if not commit only S8 then we do style later
+
+**Output:** Checked `git log`/`git status` — nothing had been committed since S4+S5a (`3b356d9`); both S6 (create/edit/delete UI + toast) and S8 (acceptance report + README) were still sitting uncommitted, on top of the brand-new, not-yet-implemented Tailwind/sort stub work from prompts #54–55. Explained this to the user, then split the working tree into three commits by what's actually finished: a `test:` commit for S6's `employee-payload.spec.ts`, a `feat:` commit for S6's implementation (`employee-payload.ts`, `api-client.ts`, `EmployeeForm.tsx`, `Modal.tsx`, `Toast.tsx`, `EmployeeListPage.tsx`), and a `docs:` commit for S8 (`ACCEPTANCE.md`, `README.md`, `PLAN.md`, `PROMPTS.md`) — deliberately leaving `sort-state.ts`, `sort-state.spec.ts`, and the in-progress diffs in `build-query.ts`/`build-query.spec.ts` unstaged, since that feature is still mid-TDD-gate and the user asked to style later.
