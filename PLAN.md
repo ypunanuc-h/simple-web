@@ -82,6 +82,7 @@
 | S5a 🛑🧪 | Employee CRUD แกนหลัก | สร้าง/แก้/ลบผ่าน API และ error รูปแบบเดียวกันหมด | 12 | 2.25 |
 | S6 | ฟอร์มสร้าง/แก้ไข + ยืนยันการลบ + toast | สร้าง แก้ไข และลบพนักงานจากหน้าเว็บครบ พร้อม toast แจ้งผล | 3 | 2.0 |
 | S8 | รวมรายงานตรวจรับ | รายงาน P0 39 ข้อ + README | — | 0.5 |
+| S7 (นอกงบเดิม) | Department CRUD ฝั่งเขียน + หน้าจัดการแผนก | สร้าง/แก้ไข/ลบแผนกจากหน้าเว็บ, dropdown พนักงานเห็นแผนกใหม่ทันที | — (P1 ล้วน) | ~1.5+ |
 
 ---
 
@@ -269,9 +270,29 @@ curl -i -X DELETE localhost:3000/api/employees/103     # 204 แล้ว GET �
 
 **AC** — P0: **AC-UI02, UI04, UI07** · P1 ที่ได้เพิ่ม: **AC-UI05, UI06**
 
-**จงใจยังไม่ทำ** — AC-UI08 (error รายช่อง ยังเป็น toast ก้อนเดียว), AC-UI03 (ขึ้นกับหน้าจัดการแผนก/S7 ที่ยังไม่ทำ)
+**จงใจยังไม่ทำ (ตอน S6)** — AC-UI08 (error รายช่อง ยังเป็น toast ก้อนเดียว), AC-UI03 (ขึ้นกับหน้าจัดการแผนก — S7 ทำเสร็จภายหลังแล้ว ดูหัวข้อ S7 ด้านล่าง)
 
 **TDD — หนึ่งด่าน 🧪** เฉพาะ `employee-payload.ts` (แปลงค่าฟอร์ม→request body) ส่วน `Modal`/`Toast`/`EmployeeForm`/การเชื่อม `EmployeeListPage` เป็น layout กับ wiring ที่ไม่มีเงื่อนไขจึงเขียนตรงได้ตามบรรทัดฐานเดียวกับ S3
+
+---
+
+### S7 — Department CRUD ฝั่งเขียน + หน้าจัดการแผนก · ทำเสร็จหลัง S8 (นอกงบเดิมทั้งหมด)
+
+**ส่งมอบ** — `POST`/`PUT /:id`/`DELETE /:id` `/api/departments` ครบ (ไม่มี `Location` header ตาม POST เพราะ SPEC §4.5 ไม่ได้ระบุไว้ต่างจาก employees), domain error ใหม่สองตัว (`DuplicateNameError`→409 `DUPLICATE_NAME`, `DepartmentInUseError`→409 `DEPARTMENT_IN_USE`), ย้าย `normalizeForComparison` (D6) จาก `import/` ไป `common/normalize.ts` ให้สองฟีเจอร์ใช้กฎเดียวกันจริง, หน้าจัดการแผนกบนเว็บ (`DepartmentsPage.tsx`) พร้อมปุ่มลบที่ disable ล่วงหน้าเมื่อ `employee_count > 0` (ใช้ข้อมูลที่ `GET /api/departments` ส่งมาอยู่แล้วตามเจตนาที่ SPEC §4.5 บอกไว้), ย้าย `Modal`/`Toast` จาก `features/employees/` ไป `web/src/components/` เพราะไม่ใช่ของ employee โดยเฉพาะ, สลับหน้า Employees ↔ Departments ด้วย tab state ใน `App.tsx` **ไม่ใช้ router** (ตัดสินใจเดียวกับ S6)
+
+**Demo**
+```
+curl -X POST localhost:3000/api/departments -d '{"name":"Finance"}'        # 201
+curl -X POST localhost:3000/api/departments -d '{"name":"finance"}'        # 409 DUPLICATE_NAME
+curl -X DELETE localhost:3000/api/departments/1                            # 409 DEPARTMENT_IN_USE (Engineering มีคน)
+```
+หน้าเว็บ — แท็บ "แผนก" เพิ่ม/แก้ไข/ลบผ่าน modal เดียวกับพนักงาน แล้วสลับกลับแท็บ "พนักงาน" ดู dropdown มีแผนกใหม่ทันที (AC-UI03)
+
+**AC** — P1 ทั้งหมด: **AC-D03–D14 (12 ข้อ, ปิดหมวด 7.3 ครบ 100%), AC-UI03**
+
+**บั๊กที่เจอระหว่างทำ** — e2e fixture ของทั้ง `employees.e2e-spec.ts` และ `departments.e2e-spec.ts` seed แผนกด้วย id ตายตัว (1-4) โดยไม่เคยรีเซ็ต identity sequence หลังจากนั้น ทำให้ `POST /api/departments` ตัวแรกชนกับแถว id=1 ที่มีอยู่แล้ว (`nextval()` ค้างที่ 1 ตั้งแต่ `RESTART IDENTITY`) แก้ด้วย `resetDepartmentIdentitySequence` ใน `test/setup-db.ts` มิเรอร์ `resetEmployeeIdentitySequence` ที่มีอยู่แล้วฝั่ง employees (D10) — เป็นบั๊กระดับ test fixture ไม่ใช่โค้ด production เพราะ production ไม่เคย insert แผนกด้วย id ที่ระบุเองเลย
+
+**TDD — หนึ่งด่าน 🧪** เฉพาะ `duplicate-name.ts` (หา department ที่ชื่อชนกันตาม D6, `excludeId` กันชนตัวเองตอน PUT) และเคส e2e ใหม่ 12 เคสคุม AC-D03–D14 — service CRUD (`create`/`update`/`delete`) คุมด้วย e2e ตามบรรทัดฐานเดียวกับ employees ไม่มี unit test แยก
 
 ---
 
@@ -320,14 +341,13 @@ curl -i -X DELETE localhost:3000/api/employees/103     # 204 แล้ว GET �
 | 5 | `sort=department` | 0.3 | L15 |
 | 6 | ตรวจ `EXPLAIN` และเทสต์ log ของ 500 (N16 verified แล้วด้วยการอ่านโค้ดใน S2 close-out) | 0.3 | N11, N15 |
 | 7 | component test infra (jsdom + React Testing Library) + เทสต์อัตโนมัติของ AC-UI02/04/05/06/07/09/10 | 0.6 | ปิดช่องโหว่ P0 ที่ระบุใน `ACCEPTANCE.md` |
-| 8 | **S7 — Department CRUD ฝั่งเขียน + หน้าจัดการแผนก** | 1.5 | D03–D14 (D02 ทำไปแล้วพร้อม `GET /api/departments`), UI03 |
-| | **รวม** | **4.4** | |
+| | **รวม** | **2.9** | |
 
-รายการเดิมข้อ 1 (แก้ไขพนักงานผ่านฟอร์ม) และข้อ 7 เดิม (ซ่อน/ล็อก ID และ Last Updated) ถูกดึงเข้าไปเป็นงาน commit ใน S6 แล้ว ไม่ใช่รายการเพิ่มอีกต่อไป — ดูหัวข้อ 4/S6
+รายการเดิมข้อ 1 (แก้ไขพนักงานผ่านฟอร์ม) และข้อ 7 เดิม (ซ่อน/ล็อก ID และ Last Updated) ถูกดึงเข้าไปเป็นงาน commit ใน S6 แล้ว **ข้อ 8 เดิม (S7 — Department CRUD ฝั่งเขียน + หน้าจัดการแผนก) ทำเสร็จและ commit แล้วเช่นกัน** ดูหัวข้อ 4a ด้านล่าง — ไม่ใช่รายการเพิ่มอีกต่อไปทั้งสามข้อ
 
-งานที่ commit 16.5 + รายการเพิ่มที่แก้แล้ว 4.4 = **20.9 ชม. คือขนาดจริงของงานที่เหลือทั้งหมดตาม `SPEC.md`** (ตัวเลขนี้ลดจาก 22.5 เดิมเพราะแก้บัญชีให้ตรงกับของจริง ไม่ใช่เพราะขอบเขตงานเปลี่ยน)
+งานที่ commit 16.5 + S7 ที่ทำเสร็จเพิ่ม (ประเมินไว้ 1.5 แต่ของจริงรวมการแก้บั๊ก sequence ของ test fixture ด้วย) + รายการเพิ่มที่เหลือ 2.9 = ขนาดจริงของงานที่เหลือทั้งหมดตาม `SPEC.md` ลดลงต่อเนื่องจาก 20.9 เดิม เพราะ S7 ย้ายจากก้อน "เพิ่ม" ไปก้อน "ทำเสร็จแล้ว"
 
-**ข้อ 8 (S7) ไม่เคยอยู่ในงบ 16 ชม. ตั้งแต่ต้น และข้อ 7 ก็เช่นกัน** — ฉบับแรกนับสองข้อนี้เป็น "เวลาที่ตัดแล้วได้คืน" ทั้งที่ไม่เคยถูกนับเข้าไป จึงคิดว่าปิดส่วนเกินได้ทั้งที่ปิดไม่ได้จริง นี่คือข้อผิดพลาดที่ร้ายที่สุดของฉบับแรก
+**ไม่เคยมีข้อไหนในรายการนี้อยู่ในงบ 16 ชม. ตั้งแต่ต้น** — ฉบับแรกเคยนับ S7 เป็น "เวลาที่ตัดแล้วได้คืน" ทั้งที่ไม่เคยถูกนับเข้าไป ซึ่งเป็นข้อผิดพลาดที่ร้ายที่สุดของฉบับแรก (ดูหัวข้อ 8) ตอนนี้ S7 ทำเสร็จแล้วนอกงบเดิมทั้งหมดตามที่บันทึกไว้แต่แรก
 
 ### 6.2 รายการสละ — เมื่อเลย checkpoint เกิน 45 นาที
 

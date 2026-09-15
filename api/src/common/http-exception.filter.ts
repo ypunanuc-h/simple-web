@@ -7,7 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
-import { ResourceNotFoundError, ValidationFailedError, type FieldErrorDetail } from './domain-error';
+import {
+  DepartmentInUseError,
+  DuplicateNameError,
+  ResourceNotFoundError,
+  ValidationFailedError,
+  type FieldErrorDetail,
+} from './domain-error';
 
 /**
  * ทางออกเดียวของ error ทุกก้อน แปลงเป็นรูปแบบ SPEC.md หัวข้อ 4.1
@@ -51,6 +57,29 @@ export class AllExceptionsFilter implements ExceptionFilter {
           code: 'VALIDATION_ERROR',
           message: 'ข้อมูลที่ส่งมาไม่ถูกต้อง',
           details: exception.details,
+        },
+      } satisfies ErrorBody);
+      return;
+    }
+
+    if (exception instanceof DuplicateNameError) {
+      response.status(HttpStatus.CONFLICT).json({
+        error: {
+          code: 'DUPLICATE_NAME',
+          message: `ชื่อแผนก "${exception.departmentName}" ถูกใช้แล้ว`,
+        },
+      } satisfies ErrorBody);
+      return;
+    }
+
+    if (exception instanceof DepartmentInUseError) {
+      response.status(HttpStatus.CONFLICT).json({
+        error: {
+          code: 'DEPARTMENT_IN_USE',
+          message: `แผนกนี้มีพนักงาน ${exception.employeeCount} คนอ้างอยู่ ย้ายพนักงานออกก่อนจึงจะลบได้`,
+          details: [
+            { field: 'id', rule: 'in_use', message: `employee_count = ${exception.employeeCount}` },
+          ],
         },
       } satisfies ErrorBody);
       return;

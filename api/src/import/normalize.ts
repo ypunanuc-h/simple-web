@@ -2,13 +2,10 @@
  * normalize ค่าข้อความและแปลง salary ตาม ANALYSIS.md §3.2 และ D6/D7 ของ SPEC.md
  */
 
-/**
- * ตัดช่องว่างหัวท้าย → ลบช่องว่างภายใน → ตัวพิมพ์เล็ก ตาม D6 / ANALYSIS.md §3.2
- * ใช้เพื่อ "เปรียบเทียบ" เท่านั้น ห้ามใช้เป็นค่าที่เก็บลงฐานข้อมูล
- */
-export function normalizeForComparison(raw: string): string {
-  return raw.trim().replace(/\s+/g, '').toLowerCase();
-}
+import { normalizeForComparison } from '../common/normalize';
+
+/** ย้ายไป common/normalize.ts แล้วเพราะ departments ต้องใช้กฎ D6 เดียวกันตอนสร้าง/แก้ไขแผนกผ่าน API — re-export ไว้ไม่ให้กระทบจุดเรียกเดิมในไฟล์นี้ */
+export { normalizeForComparison } from '../common/normalize';
 
 export type StatusNormalizationResult =
   | { ok: true; isActive: boolean }

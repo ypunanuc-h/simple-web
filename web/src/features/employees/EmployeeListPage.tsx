@@ -12,9 +12,9 @@ import { buildEmployeeQuery, type EmployeeFilterFormValues } from '../../lib/bui
 import type { EmployeeInput } from '../../lib/employee-payload';
 import { formatSalary } from '../../lib/format';
 import { DEFAULT_SORT_STATE, nextSortState, type SortColumn, type SortState } from '../../lib/sort-state';
+import { Modal } from '../../components/Modal';
+import { Toast, type ToastState } from '../../components/Toast';
 import { EmployeeForm } from './EmployeeForm';
-import { Modal } from './Modal';
-import { Toast, type ToastState } from './Toast';
 
 const SORTABLE_COLUMNS: ReadonlyArray<{ readonly column: SortColumn; readonly label: string }> = [
   { column: 'salary', label: 'Salary' },

@@ -5,7 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/http-exception.filter';
 import { buildValidationPipe } from '../src/common/validation-pipe';
-import { createTestDataSource, truncateAll } from './setup-db';
+import { createTestDataSource, resetDepartmentIdentitySequence, truncateAll } from './setup-db';
 
 interface EmployeeFixture {
   id: number;
@@ -33,6 +33,7 @@ async function seedBaseline(dataSource: DataSource): Promise<void> {
     `INSERT INTO departments (id, name) VALUES
       (1, 'Engineering'), (2, 'Marketing'), (3, 'Sales'), (4, 'HR')`,
   );
+  await resetDepartmentIdentitySequence(dataSource);
   for (const employee of BASELINE_EMPLOYEES) {
     await dataSource.query(
       `INSERT INTO employees (id, name, department_id, salary, join_date, is_active, updated_at)
@@ -102,5 +103,114 @@ describe('Departments HTTP API', () => {
     expect(countByName.get('Marketing')).toBe(1);
     expect(countByName.get('Sales')).toBe(1);
     expect(countByName.get('HR')).toBe(1);
+  });
+
+  it('AC-D03: POST สร้างแผนกใหม่สำเร็จ และปรากฏใน GET /api/departments ทันที', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/departments')
+      .send({ name: 'Finance' })
+      .expect(201);
+    expect(created.body).toMatchObject({ name: 'Finance', employee_count: 0 });
+    expect(typeof created.body.id).toBe('number');
+
+    const list = await request(app.getHttpServer()).get('/api/departments').expect(200);
+    expect((list.body as { name: string }[]).map((d) => d.name)).toContain('Finance');
+  });
+
+  it('AC-D04: POST ชื่อซ้ำแบบต่างตัวพิมพ์ ("engineering") ตอบ 409 DUPLICATE_NAME', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/departments')
+      .send({ name: 'engineering' })
+      .expect(409);
+    expect(response.body.error.code).toBe('DUPLICATE_NAME');
+  });
+
+  it('AC-D05: POST ชื่อที่ normalize แล้วชนกัน ("Engi neering") ตอบ 409 DUPLICATE_NAME', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/departments')
+      .send({ name: 'Engi neering' })
+      .expect(409);
+    expect(response.body.error.code).toBe('DUPLICATE_NAME');
+  });
+
+  it('AC-D06: POST ชื่อมีช่องว่างหัวท้าย เก็บแบบตัดช่องว่างแล้ว ไม่แปลงเป็นตัวพิมพ์เล็ก', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/departments')
+      .send({ name: '  Finance  ' })
+      .expect(201);
+    expect(response.body.name).toBe('Finance');
+  });
+
+  it('AC-D07: POST ชื่อมีช่องว่างตรงกลาง เก็บช่องว่างภายในไว้ครบ', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/departments')
+      .send({ name: 'Data Science' })
+      .expect(201);
+    expect(response.body.name).toBe('Data Science');
+  });
+
+  it('AC-D08: DELETE แผนกที่ยังมีพนักงานอ้างอยู่ ตอบ 409 DEPARTMENT_IN_USE พร้อมจำนวนพนักงาน', async () => {
+    const response = await request(app.getHttpServer()).delete('/api/departments/1').expect(409);
+    expect(response.body.error.code).toBe('DEPARTMENT_IN_USE');
+    expect(response.body.error.details).toEqual([
+      { field: 'id', rule: 'in_use', message: 'employee_count = 2' },
+    ]);
+  });
+
+  it('AC-D09: หลัง DELETE ที่ถูกปฏิเสธ พนักงานและแผนกยังอยู่ครบ', async () => {
+    await request(app.getHttpServer()).delete('/api/departments/1').expect(409);
+
+    await request(app.getHttpServer()).get('/api/employees/101').expect(200);
+    await request(app.getHttpServer()).get('/api/employees/104').expect(200);
+    const list = await request(app.getHttpServer()).get('/api/departments').expect(200);
+    expect((list.body as { name: string }[]).map((d) => d.name)).toContain('Engineering');
+  });
+
+  it('AC-D10: ย้ายพนักงานออกจากแผนกจนหมดแล้ว DELETE สำเร็จ', async () => {
+    for (const employee of BASELINE_EMPLOYEES.filter((e) => e.departmentId === 1)) {
+      await request(app.getHttpServer())
+        .put(`/api/employees/${employee.id}`)
+        .send({
+          name: employee.name,
+          department_id: 2,
+          salary: employee.salary,
+          join_date: employee.joinDate,
+          is_active: employee.isActive,
+        })
+        .expect(200);
+    }
+
+    await request(app.getHttpServer()).delete('/api/departments/1').expect(204);
+  });
+
+  it('AC-D11: DELETE แผนกที่ไม่มีอยู่ ตอบ 404 NOT_FOUND', async () => {
+    const response = await request(app.getHttpServer()).delete('/api/departments/999').expect(404);
+    expect(response.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('AC-D12: PUT เปลี่ยนชื่อเป็นชื่อที่ normalize แล้วชนแผนกอื่น ตอบ 409 DUPLICATE_NAME', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/departments/2')
+      .send({ name: 'engineering' })
+      .expect(409);
+    expect(response.body.error.code).toBe('DUPLICATE_NAME');
+  });
+
+  it('AC-D13: PUT เปลี่ยนชื่อเป็นชื่อเดิมของตัวเอง ตอบ 200 ไม่ใช่ 409', async () => {
+    const response = await request(app.getHttpServer())
+      .put('/api/departments/1')
+      .send({ name: 'Engineering' })
+      .expect(200);
+    expect(response.body.name).toBe('Engineering');
+  });
+
+  it('AC-D14: เปลี่ยนชื่อแผนกแล้ว GET /api/employees แสดงชื่อใหม่ทันทีโดยไม่ต้องแก้พนักงาน', async () => {
+    await request(app.getHttpServer())
+      .put('/api/departments/1')
+      .send({ name: 'Engineering Team' })
+      .expect(200);
+
+    const response = await request(app.getHttpServer()).get('/api/employees/101').expect(200);
+    expect(response.body.department).toEqual({ id: 1, name: 'Engineering Team' });
   });
 });

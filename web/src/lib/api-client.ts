@@ -6,6 +6,11 @@ export interface EmployeeDepartment {
   readonly name: string;
 }
 
+/** GET/POST/PUT /api/departments คืน employee_count เพิ่มมาด้วย ต่างจากที่ฝังใน Employee.department */
+export interface Department extends EmployeeDepartment {
+  readonly employee_count: number;
+}
+
 export interface Employee {
   readonly id: number;
   readonly name: string;
@@ -30,6 +35,10 @@ export interface EmployeeListResult {
 
 function toDepartment(value: unknown): EmployeeDepartment {
   return { id: readNumber(value, 'id'), name: readString(value, 'name') };
+}
+
+function toDepartmentWithCount(value: unknown): Department {
+  return { ...toDepartment(value), employee_count: readNumber(value, 'employee_count') };
 }
 
 function toEmployee(value: unknown): Employee {
@@ -75,13 +84,44 @@ export async function fetchEmployees(queryString: string = ''): Promise<Employee
   };
 }
 
-export async function fetchDepartments(): Promise<readonly EmployeeDepartment[]> {
+export async function fetchDepartments(): Promise<readonly Department[]> {
   const response = await fetch('/api/departments');
   if (!response.ok) {
     throw new Error(await extractErrorMessage(response));
   }
   const body: unknown = await response.json();
-  return asArray(body).map((row) => toDepartment(row));
+  return asArray(body).map((row) => toDepartmentWithCount(row));
+}
+
+export async function createDepartment(name: string): Promise<Department> {
+  const response = await fetch('/api/departments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  return toDepartmentWithCount(await response.json());
+}
+
+export async function updateDepartment(id: number, name: string): Promise<Department> {
+  const response = await fetch(`/api/departments/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  return toDepartmentWithCount(await response.json());
+}
+
+export async function deleteDepartment(id: number): Promise<void> {
+  const response = await fetch(`/api/departments/${id}`, { method: 'DELETE' });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
 }
 
 export async function createEmployee(payload: EmployeeInput): Promise<Employee> {

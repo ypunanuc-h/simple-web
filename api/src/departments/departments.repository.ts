@@ -63,3 +63,33 @@ export async function departmentExists(dataSource: DataSource, id: number): Prom
   const result: unknown = await dataSource.query('SELECT 1 FROM departments WHERE id = $1', [id]);
   return readRows(result).length > 0;
 }
+
+/** แก้ชื่อแผนก คืน null ถ้าไม่พบ id นั้น — ค่าที่บันทึกคือค่าที่ผู้เรียก trim มาแล้ว ไม่ normalize ก่อนเก็บตาม D6 */
+export async function updateDepartmentName(
+  manager: EntityManager,
+  id: number,
+  name: string,
+): Promise<DepartmentEntity | null> {
+  const department = await manager.findOneBy(DepartmentEntity, { id });
+  if (department === null) return null;
+  department.name = name;
+  return manager.save(DepartmentEntity, department);
+}
+
+/** คืน true ถ้าลบได้จริง (มีแถวนั้นอยู่) — ไม่ตัดสินใจเรื่อง in-use เป็นหน้าที่ของ service ตาม CLAUDE.md §5.1 */
+export async function deleteDepartmentById(manager: EntityManager, id: number): Promise<boolean> {
+  const result = await manager.delete(DepartmentEntity, { id });
+  return (result.affected ?? 0) > 0;
+}
+
+/** ใช้ก่อนลบแผนกตาม D5 — นับพนักงานที่ยังอ้าง department_id นี้อยู่ */
+export async function countEmployeesInDepartment(
+  dataSource: DataSource,
+  departmentId: number,
+): Promise<number> {
+  const result: unknown = await dataSource.query(
+    'SELECT COUNT(*)::int AS count FROM employees WHERE department_id = $1',
+    [departmentId],
+  );
+  return readNumber(readRows(result)[0], 'count');
+}

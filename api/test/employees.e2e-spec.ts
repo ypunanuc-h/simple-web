@@ -5,7 +5,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/http-exception.filter';
 import { buildValidationPipe } from '../src/common/validation-pipe';
-import { createTestDataSource, truncateAll } from './setup-db';
+import { createTestDataSource, resetDepartmentIdentitySequence, truncateAll } from './setup-db';
 
 interface EmployeeFixture {
   id: number;
@@ -46,6 +46,7 @@ async function seedBaseline(dataSource: DataSource): Promise<void> {
     `INSERT INTO departments (id, name) VALUES
       (1, 'Engineering'), (2, 'Marketing'), (3, 'Sales'), (4, 'HR')`,
   );
+  await resetDepartmentIdentitySequence(dataSource);
   for (const employee of BASELINE_EMPLOYEES) {
     await insertEmployee(dataSource, employee);
   }

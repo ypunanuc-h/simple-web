@@ -24,3 +24,22 @@ export class ValidationFailedError extends Error {
     this.name = 'ValidationFailedError';
   }
 }
+
+/** ชื่อแผนกซ้ำตามกฎ normalize ของ D6 — SPEC.md §4.1 code DUPLICATE_NAME, 409 */
+export class DuplicateNameError extends Error {
+  constructor(public readonly departmentName: string) {
+    super(`department name "${departmentName}" already exists`);
+    this.name = 'DuplicateNameError';
+  }
+}
+
+/** ลบแผนกที่ยังมีพนักงานอ้างอยู่ตาม D5 — SPEC.md §4.1 code DEPARTMENT_IN_USE, 409 */
+export class DepartmentInUseError extends Error {
+  constructor(
+    public readonly departmentId: number,
+    public readonly employeeCount: number,
+  ) {
+    super(`department ${departmentId} has ${employeeCount} employee(s) referencing it`);
+    this.name = 'DepartmentInUseError';
+  }
+}

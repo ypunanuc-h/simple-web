@@ -38,3 +38,20 @@ export async function truncateAll(dataSource: DataSource): Promise<void> {
     'TRUNCATE TABLE "employees", "departments" RESTART IDENTITY CASCADE',
   );
 }
+
+/**
+ * ใช้หลัง fixture seed แผนกด้วย id ที่ระบุเอง (เช่น 1-4 เพื่อให้ BASELINE_EMPLOYEES อ่านง่าย)
+ * มิฉะนั้น sequence ค้างที่ 1 ตั้งแต่ RESTART IDENTITY (ไม่มีใครเรียก nextval() เลยตอน insert
+ * แบบระบุ id เอง) แล้วชนกับแถว id=1 ที่มีอยู่แล้วตอน POST /api/departments สร้างแถวใหม่จริง
+ * มิเรอร์ resetEmployeeIdentitySequence ใน employees.repository.ts ที่แก้ปัญหาเดียวกันฝั่ง employees
+ */
+export async function resetDepartmentIdentitySequence(dataSource: DataSource): Promise<void> {
+  assertTestDatabase(dataSource.options.database);
+  await dataSource.query(`
+    SELECT setval(
+      pg_get_serial_sequence('departments', 'id'),
+      COALESCE((SELECT MAX(id) FROM departments), 1),
+      (SELECT MAX(id) FROM departments) IS NOT NULL
+    )
+  `);
+}
