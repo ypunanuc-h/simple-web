@@ -1,4 +1,5 @@
 import { asArray, readArray, readBoolean, readField, readNumber, readString } from './json';
+import type { EmployeeInput } from './employee-payload';
 
 export interface EmployeeDepartment {
   readonly id: number;
@@ -81,4 +82,35 @@ export async function fetchDepartments(): Promise<readonly EmployeeDepartment[]>
   }
   const body: unknown = await response.json();
   return asArray(body).map((row) => toDepartment(row));
+}
+
+export async function createEmployee(payload: EmployeeInput): Promise<Employee> {
+  const response = await fetch('/api/employees', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  return toEmployee(await response.json());
+}
+
+export async function updateEmployee(id: number, payload: EmployeeInput): Promise<Employee> {
+  const response = await fetch(`/api/employees/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
+  return toEmployee(await response.json());
+}
+
+export async function deleteEmployee(id: number): Promise<void> {
+  const response = await fetch(`/api/employees/${id}`, { method: 'DELETE' });
+  if (!response.ok) {
+    throw new Error(await extractErrorMessage(response));
+  }
 }

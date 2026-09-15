@@ -1,12 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
+  createEmployee,
+  deleteEmployee,
   fetchDepartments,
   fetchEmployees,
+  updateEmployee,
   type Employee,
   type EmployeeDepartment,
 } from '../../lib/api-client';
 import { buildEmployeeQuery, type EmployeeFilterFormValues } from '../../lib/build-query';
+import type { EmployeeInput } from '../../lib/employee-payload';
 import { formatSalary } from '../../lib/format';
+import { EmployeeForm } from './EmployeeForm';
+import { Modal } from './Modal';
+import { Toast, type ToastState } from './Toast';
+
+type FormModalState = { readonly mode: 'create' } | { readonly mode: 'edit'; readonly employee: Employee };
 
 type LoadState =
   | { status: 'loading' }
@@ -37,6 +46,10 @@ export function EmployeeListPage() {
   const [departments, setDepartments] = useState<readonly EmployeeDepartment[]>([]);
   const [formValues, setFormValues] = useState<EmployeeFilterFormValues>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<EmployeeFilterFormValues>(EMPTY_FILTERS);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [formModal, setFormModal] = useState<FormModalState | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   useEffect(() => {
     // dropdown แผนกเป็นตัวช่วยเสริม (AC-UI02 ห้าม hardcode) ถ้าโหลดไม่สำเร็จเหลือแค่ "ทุกแผนก"
@@ -68,7 +81,7 @@ export function EmployeeListPage() {
     return () => {
       cancelled = true;
     };
-  }, [appliedFilters]);
+  }, [appliedFilters, refreshToken]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
@@ -80,10 +93,54 @@ export function EmployeeListPage() {
     setAppliedFilters(EMPTY_FILTERS);
   }
 
+  async function handleCreateSubmit(payload: EmployeeInput): Promise<void> {
+    try {
+      await createEmployee(payload);
+      setToast({ type: 'success', message: 'สร้างพนักงานสำเร็จ' });
+      setFormModal(null);
+      setRefreshToken((token) => token + 1);
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'สร้างพนักงานไม่สำเร็จ',
+      });
+    }
+  }
+
+  async function handleUpdateSubmit(id: number, payload: EmployeeInput): Promise<void> {
+    try {
+      await updateEmployee(id, payload);
+      setToast({ type: 'success', message: 'แก้ไขพนักงานสำเร็จ' });
+      setFormModal(null);
+      setRefreshToken((token) => token + 1);
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'แก้ไขพนักงานไม่สำเร็จ',
+      });
+    }
+  }
+
+  async function handleConfirmDelete(): Promise<void> {
+    if (deleteTarget === null) return;
+    try {
+      await deleteEmployee(deleteTarget.id);
+      setToast({ type: 'success', message: `ลบพนักงาน "${deleteTarget.name}" สำเร็จ` });
+      setRefreshToken((token) => token + 1);
+    } catch (error) {
+      setToast({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'ลบพนักงานไม่สำเร็จ',
+      });
+    } finally {
+      setDeleteTarget(null);
+    }
+  }
+
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', padding: 24 }}>
       <h1>Employee Management System</h1>
-      <button type="button" disabled title="ยังไม่เปิดใช้งานในสไลซ์นี้">
+      <button type="button" onClick={() => setFormModal({ mode: 'create' })}>
         เพิ่มพนักงาน
       </button>
 
@@ -191,6 +248,7 @@ export function EmployeeListPage() {
               <th>Join Date</th>
               <th>Status</th>
               <th>Last Updated (UTC)</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -203,11 +261,55 @@ export function EmployeeListPage() {
                 <td>{employee.join_date}</td>
                 <td>{employee.is_active ? 'Active' : 'Inactive'}</td>
                 <td>{formatUpdatedAtUtc(employee.updated_at)}</td>
+                <td>
+                  <button type="button" onClick={() => setFormModal({ mode: 'edit', employee })}>
+                    แก้ไข
+                  </button>{' '}
+                  <button type="button" onClick={() => setDeleteTarget(employee)}>
+                    ลบ
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      <Modal open={formModal !== null} onClose={() => setFormModal(null)}>
+        {formModal !== null && (
+          <EmployeeForm
+            mode={formModal.mode}
+            departments={departments}
+            initialEmployee={formModal.mode === 'edit' ? formModal.employee : undefined}
+            onSubmit={(payload) =>
+              formModal.mode === 'create'
+                ? handleCreateSubmit(payload)
+                : handleUpdateSubmit(formModal.employee.id, payload)
+            }
+            onCancel={() => setFormModal(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal open={deleteTarget !== null} onClose={() => setDeleteTarget(null)}>
+        {deleteTarget !== null && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 280 }}>
+            <p>
+              ยืนยันการลบพนักงาน "{deleteTarget.name}" ใช่หรือไม่? การลบนี้ไม่สามารถย้อนกลับได้
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setDeleteTarget(null)}>
+                ยกเลิก
+              </button>
+              <button type="button" onClick={handleConfirmDelete}>
+                ยืนยันลบ
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </main>
   );
 }
