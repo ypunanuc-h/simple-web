@@ -24,6 +24,10 @@ describe('schema ของฐานข้อมูล', () => {
     await dataSource.destroy();
   });
 
+  beforeEach(async () => {
+    await truncateAll(dataSource);
+  });
+
   it('AC-N05: ชนิดคอลัมน์ของ employees ตรงกับ SPEC.md หัวข้อ 2', async () => {
     const rows: unknown[] = await dataSource.query(
       `SELECT column_name, data_type, character_maximum_length,
