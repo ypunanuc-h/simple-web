@@ -8,6 +8,7 @@ import {
 } from '../../lib/api-client';
 import { Modal } from '../../components/Modal';
 import { Toast, type ToastState } from '../../components/Toast';
+import { filterDepartmentsByName } from './filter-departments';
 
 type LoadState =
   | { status: 'loading' }
@@ -79,6 +80,7 @@ export function DepartmentsPage() {
   const [formModal, setFormModal] = useState<FormModalState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +139,9 @@ export function DepartmentsPage() {
     }
   }
 
+  const filteredDepartments =
+    state.status === 'ready' ? filterDepartmentsByName(state.departments, searchQuery) : [];
+
   return (
     <main className="min-h-screen bg-white px-4 py-8 font-sans text-gray-900 sm:px-8">
       <div className="mx-auto max-w-3xl">
@@ -164,6 +169,22 @@ export function DepartmentsPage() {
         )}
 
         {state.status === 'ready' && state.departments.length > 0 && (
+          <div className="mb-4">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="ค้นหาชื่อแผนก..."
+              className="block w-full max-w-xs rounded-md border border-gray-300 px-2 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+            />
+          </div>
+        )}
+
+        {state.status === 'ready' && state.departments.length > 0 && filteredDepartments.length === 0 && (
+          <p className="text-sm text-gray-500">ไม่พบแผนกที่ค้นหา</p>
+        )}
+
+        {state.status === 'ready' && filteredDepartments.length > 0 && (
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-brand-light">
@@ -174,7 +195,7 @@ export function DepartmentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {state.departments.map((department) => (
+                {filteredDepartments.map((department) => (
                   <tr key={department.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-gray-900">{department.name}</td>
                     <td className="px-3 py-2 text-gray-700">{department.employee_count}</td>

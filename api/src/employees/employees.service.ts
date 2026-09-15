@@ -4,6 +4,7 @@ import { ResourceNotFoundError, ValidationFailedError, type FieldErrorDetail } f
 import { DepartmentsService } from '../departments/departments.service';
 import { validateJoinDate, validateName, validateSalary } from './employee-field-validators';
 import { hasEmployeeDataChanged } from './employee-diff';
+import { validateListQueryRange } from './list-query-validators';
 import {
   EmployeesRepository,
   type EmployeeReadRow,
@@ -100,6 +101,16 @@ export class EmployeesService {
     salaryMin?: string;
     salaryMax?: string;
   }): Promise<EmployeeListResult> {
+    const rangeErrors = validateListQueryRange({
+      salaryMin: input.salaryMin,
+      salaryMax: input.salaryMax,
+      joinDateFrom: input.joinDateFrom,
+      joinDateTo: input.joinDateTo,
+    });
+    if (rangeErrors.length > 0) {
+      throw new ValidationFailedError(rangeErrors);
+    }
+
     const command = createEmployeeListCommand(input);
     const page = await this.employeesRepository.findPage(command);
     return {

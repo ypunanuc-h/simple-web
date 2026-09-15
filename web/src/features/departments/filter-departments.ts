@@ -8,5 +8,9 @@ export function filterDepartmentsByName(
   departments: readonly Department[],
   query: string,
 ): readonly Department[] {
-  throw new Error('not implemented');
+  const trimmed = query.trim();
+  if (trimmed === '') return departments;
+
+  const needle = trimmed.toLowerCase();
+  return departments.filter((department) => department.name.toLowerCase().includes(needle));
 }
