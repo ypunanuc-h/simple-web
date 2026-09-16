@@ -33,6 +33,12 @@ Import เป็นคำสั่งฝั่ง server แบบ one-off เ�
 docker compose run --rm api npm run seed
 ```
 
+```bash
+docker compose up
+docker compose restart web
+docker compose down -v
+```
+
 อ่านจาก `example_data/exam_data.xlsx` รันซ้ำได้อย่างปลอดภัย — ไฟล์เดิมที่ import ซ้ำจะไม่เปลี่ยนข้อมูลใด ๆ (idempotent ตาม D1) ผลลัพธ์สรุปจำนวนแถวที่เพิ่ม/แก้ไข/ไม่เปลี่ยน/ถูกข้ามพร้อมเหตุผล
 
 ## รันเทสต์
@@ -51,6 +57,13 @@ npm test          # unit — 18 เทสต์
 ```
 
 ทุกชื่อเทสต์ขึ้นต้นด้วยเลข acceptance criteria ที่ตรงกับ `SPEC.md` §7 (เช่น `AC-I05: "In Active" ต้องบันทึกเป็น is_active = false`)
+
+## Migration Databsae
+```bash
+docker compose run --rm api npm run migration:run
+docker compose run --rm api npm run migration:revert
+docker compose run --rm api npm run typeorm -- migration:show
+```
 
 ## โครงสร้างโปรเจกต์
 

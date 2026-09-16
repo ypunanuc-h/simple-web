@@ -20,7 +20,13 @@ services:
 
   api:
     build: ./api
-    command: npm run start:dev
+    # npm install ก่อน start ทุกครั้ง กัน node_modules ใน named volume ไม่ตรงกับ
+    # package.json ปัจจุบัน (เช่นหลัง docker compose down -v ที่ลบ volume ทิ้ง
+    # แล้ว image เก่ายังไม่เคย rebuild หลังเพิ่ม dependency ใหม่)
+    # migration:run ก่อน start เช่นกัน กัน "relation does not exist" หลัง down -v
+    # ลบ db_data ทิ้งด้วย — migration:run เป็น idempotent (เช็คตาราง migrations
+    # ก่อนเสมอ) จึงรันซ้ำทุกครั้งที่ container start ได้โดยไม่มีผลเสีย
+    command: sh -c "npm install && npm run migration:run && npm run start:dev"
     environment:
       NODE_ENV: development
       TZ: UTC
@@ -42,7 +48,7 @@ services:
 
   web:
     build: ./web
-    command: npm run dev -- --host 0.0.0.0 --port ${WEB_PORT}
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port ${WEB_PORT}"
     environment:
       API_PROXY_TARGET: http://api:${API_PORT}
     ports:
